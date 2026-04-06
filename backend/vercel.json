@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "public": false,
+  "buildCommand": "npm install",
+  "env": {
+    "CLOUDFLARE_ACCOUNT_ID": "@cloudflare_account_id",
+    "CLOUDFLARE_ACCESS_KEY_ID": "@cloudflare_access_key_id",
+    "CLOUDFLARE_SECRET_ACCESS_KEY": "@cloudflare_secret_access_key",
+    "CLOUDFLARE_BUCKET_NAME": "@cloudflare_bucket_name",
+    "CLOUDFLARE_PUBLIC_URL": "@cloudflare_public_url"
+  },
+  "functions": {
+    "api/**/*.js": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  }
+}

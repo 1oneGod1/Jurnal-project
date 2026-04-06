@@ -1,0 +1,130 @@
+@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+@import 'tailwindcss';
+
+:root {
+  --bg: #0b1224;
+  --panel: rgba(14, 25, 49, 0.72);
+  --panel-border: rgba(148, 186, 255, 0.2);
+  --text-main: #e7f1ff;
+  --text-muted: #a2b6d6;
+  --shadow-panel: 0 28px 40px -26px rgba(5, 9, 19, 0.85);
+
+  font-family: 'Chakra Petch', 'Trebuchet MS', 'Segoe UI', sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--text-main);
+  background-color: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 10% 10%, rgba(90, 227, 255, 0.12), transparent 42%),
+    radial-gradient(circle at 85% 18%, rgba(255, 186, 96, 0.17), transparent 38%),
+    linear-gradient(165deg, #070d1b 0%, #0b1224 45%, #111b33 100%);
+  color: var(--text-main);
+}
+
+a {
+  color: inherit;
+}
+
+.glass-panel {
+  border: 1px solid var(--panel-border);
+  background: linear-gradient(145deg, rgba(14, 25, 49, 0.76), rgba(16, 22, 42, 0.66));
+  box-shadow: var(--shadow-panel);
+  backdrop-filter: blur(10px);
+}
+
+.slide-up {
+  animation: slide-up 420ms ease-out both;
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.field-label {
+  display: grid;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--text-main);
+}
+
+.field-input {
+  width: 100%;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(196, 219, 255, 0.22);
+  background: rgba(8, 17, 36, 0.72);
+  padding: 0.65rem 0.8rem;
+  color: #f6fbff;
+  outline: none;
+  transition: border-color 160ms ease;
+}
+
+.field-input::placeholder {
+  color: rgba(186, 204, 233, 0.82);
+}
+
+.field-input:focus {
+  border-color: rgba(95, 224, 255, 0.7);
+}
+
+.code-field {
+  min-height: 10rem;
+  font-family: 'IBM Plex Mono', Consolas, monospace;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.badge {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 0.7rem;
+  border: 1px solid transparent;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.badge-blue {
+  border-color: rgba(150, 234, 255, 0.35);
+  background: rgba(73, 184, 228, 0.2);
+  color: #ddf8ff;
+}
+
+.badge-amber {
+  border-color: rgba(252, 210, 139, 0.38);
+  background: rgba(239, 175, 65, 0.16);
+  color: #fff1cf;
+}
+
+.badge-purple {
+  border-color: rgba(203, 175, 255, 0.42);
+  background: rgba(123, 86, 213, 0.24);
+  color: #efe7ff;
+}
