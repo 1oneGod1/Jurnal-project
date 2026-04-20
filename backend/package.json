@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "Backend API untuk generate presigned URL Cloudflare R2 upload dokumentasi Jurnal Proyek Arduino",
   "main": "api/generate-upload-url.js",
-  "type": "module",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",

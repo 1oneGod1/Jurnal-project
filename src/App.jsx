@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   ArrowLeft,
   CalendarDays,
@@ -21,9 +21,10 @@ import {
   X,
 } from 'lucide-react'
 import { ref, onValue, push, remove, set, update } from 'firebase/database'
+import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
-import { db } from './firebase-config'
+import { db, storage } from './firebase-config'
 
 const DEFAULT_PROJECT_FORM = {
   title: '',
@@ -45,6 +46,30 @@ const DEFAULT_UPDATE_FORM = {
 }
 
 const uploadApiEndpoint = import.meta.env.VITE_UPLOAD_API_ENDPOINT
+const uploadPublicBaseUrl = (import.meta.env.VITE_UPLOAD_PUBLIC_BASE_URL || '').replace(/\/+$/, '')
+
+const extractPublicUrlFromPayload = (payload) => {
+  const directUrl = payload?.publicUrl || payload?.fileUrl || payload?.url
+  if (typeof directUrl === 'string' && directUrl.trim()) {
+    if (directUrl.startsWith('http')) {
+      return directUrl
+    }
+
+    if (uploadPublicBaseUrl) {
+      return `${uploadPublicBaseUrl}/${directUrl.replace(/^\/+/, '')}`
+    }
+  }
+
+  const objectKey = payload?.objectKey || payload?.key || payload?.path || payload?.fileKey
+  if (typeof objectKey === 'string' && objectKey.trim() && uploadPublicBaseUrl) {
+    return `${uploadPublicBaseUrl}/${objectKey.replace(/^\/+/, '')}`
+  }
+
+  return ''
+}
+
+const extractUploadUrlFromPayload = (payload) =>
+  payload?.uploadUrl || payload?.presignedUrl || payload?.signedUrl || ''
 
 const toDateLabel = (value) => {
   if (!value) {
@@ -71,6 +96,9 @@ const isVideoType = (type = '') => type.startsWith('video/')
 const isPdfType = (type = '', url = '') => type.includes('pdf') || url.toLowerCase().endsWith('.pdf')
 
 const DocumentationPreview = ({ item }) => {
+  const [imgError, setImgError] = React.useState(false)
+  const [pdfError, setPdfError] = React.useState(false)
+
   if (!item.documentation) {
     return null
   }
@@ -85,12 +113,19 @@ const DocumentationPreview = ({ item }) => {
       </p>
 
       {isImageType(documentationType) && (
-        <img
-          src={item.documentation}
-          alt={item.documentationName || 'Dokumentasi proyek'}
-          className="h-auto w-full max-h-[60vh] rounded-xl border border-white/15 object-contain"
-          loading="lazy"
-        />
+        imgError ? (
+          <div className="rounded-xl border border-cyan-200/25 bg-cyan-400/10 p-3 text-sm text-cyan-50">
+            Gambar tidak dapat ditampilkan. Gunakan tombol di bawah untuk membuka langsung.
+          </div>
+        ) : (
+          <img
+            src={item.documentation}
+            alt={item.documentationName || 'Dokumentasi proyek'}
+            className="h-auto w-full max-h-[60vh] rounded-xl border border-white/15 object-contain"
+            loading="lazy"
+            onError={() => setImgError(true)}
+          />
+        )
       )}
 
       {isVideoType(documentationType) && (
@@ -106,13 +141,20 @@ const DocumentationPreview = ({ item }) => {
       )}
 
       {isPdfType(documentationType, item.documentation) && (
-        <div className="w-full overflow-hidden rounded-xl border border-white/15 bg-white">
-          <iframe
-            src={item.documentation}
-            title={item.documentationName || 'Preview PDF'}
-            className="h-[60vh] w-full"
-          />
-        </div>
+        pdfError ? (
+          <div className="rounded-xl border border-cyan-200/25 bg-cyan-400/10 p-3 text-sm text-cyan-50">
+            PDF tidak dapat dipreview di browser ini. Gunakan tombol di bawah untuk membuka langsung.
+          </div>
+        ) : (
+          <div className="w-full overflow-hidden rounded-xl border border-white/15 bg-white">
+            <iframe
+              src={item.documentation}
+              title={item.documentationName || 'Preview PDF'}
+              className="h-[60vh] w-full"
+              onError={() => setPdfError(true)}
+            />
+          </div>
+        )
       )}
 
       {!isImageType(documentationType) &&
@@ -454,50 +496,62 @@ function App() {
       return
     }
 
-    if (!uploadApiEndpoint) {
-      setUploadMessage('Set VITE_UPLOAD_API_ENDPOINT terlebih dahulu di file .env.')
+    const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
+    if (file.size > MAX_FILE_SIZE) {
+      setUploadMessage('Gagal mengunggah file: Ukuran file melebihi batas 100MB.')
       event.target.value = ''
       return
     }
 
+    const validTypes = ['image/', 'video/', 'application/pdf']
+    const isValidType = validTypes.some((t) => file.type.startsWith(t)) || file.name.toLowerCase().endsWith('.pdf')
+    if (!isValidType) {
+      setUploadMessage('Gagal mengunggah file: Tipe file tidak didukung. Gunakan gambar, video, atau PDF.')
+      event.target.value = ''
+      return
+    }
+
+    const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+
     try {
       setIsUploading(true)
-      setUploadMessage('Meminta upload URL...')
+      setUploadMessage('')
+      let publicUrl = ''
 
-      const response = await fetch(uploadApiEndpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          filename: file.name,
+      if (uploadApiEndpoint) {
+        setUploadMessage('Mengunggah file ke Cloudflare R2...')
+
+        const objectKey = `documentation/${activeProjectId || 'umum'}/${Date.now()}-${safeFileName}`
+        const formData = new FormData()
+        formData.append('key', objectKey)
+        formData.append('file', file, safeFileName)
+
+        const response = await fetch(uploadApiEndpoint, {
+          method: 'POST',
+          body: formData,
+        })
+
+        if (!response.ok) {
+          throw new Error(`Server upload merespons dengan error ${response.status}. Coba lagi nanti.`)
+        }
+
+        const payload = await response.json()
+        const resolvedPublicUrl = extractPublicUrlFromPayload(payload)
+
+        if (!resolvedPublicUrl) {
+          throw new Error('URL file tidak tersedia setelah upload. Hubungi administrator.')
+        }
+
+        publicUrl = resolvedPublicUrl
+      } else {
+        setUploadMessage('Mengunggah file ke Firebase Storage...')
+        const objectPath = `documentation/${activeProjectId || 'umum'}/${Date.now()}-${safeFileName}`
+        const docRef = storageRef(storage, objectPath)
+
+        await uploadBytes(docRef, file, {
           contentType: file.type || 'application/octet-stream',
-          projectId: activeProjectId,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`Endpoint upload merespons ${response.status}`)
-      }
-
-      const { uploadUrl, publicUrl } = await response.json()
-
-      if (!uploadUrl || !publicUrl) {
-        throw new Error('Payload endpoint upload belum berisi uploadUrl dan publicUrl.')
-      }
-
-      setUploadMessage('Mengunggah file ke Cloudflare R2...')
-
-      const uploadResponse = await fetch(uploadUrl, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': file.type || 'application/octet-stream',
-        },
-        body: file,
-      })
-
-      if (!uploadResponse.ok) {
-        throw new Error(`Upload ke R2 gagal dengan status ${uploadResponse.status}`)
+        })
+        publicUrl = await getDownloadURL(docRef)
       }
 
       setNewUpdate((previous) => ({
